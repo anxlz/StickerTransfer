@@ -10,6 +10,9 @@
     <queries>
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
+        <intent>
+            <action android:name="com.whatsapp.intent.action.ENABLE_STICKER_PACK" />
+        </intent>
     </queries>
 
     <application
@@ -35,7 +38,9 @@
         <provider
             android:name=".provider.StickerContentProvider"
             android:authorities="${applicationId}.StickerContentProvider"
+            android:enabled="true"
             android:exported="true"
+            android:grantUriPermissions="true"
             android:readPermission="com.whatsapp.permission.STICKERS" />
 
         <provider

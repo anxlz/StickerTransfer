@@ -19,16 +19,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.ByteArrayOutputStream
 import java.io.File
 
 sealed class ImportUiState {
     object Idle : ImportUiState()
     object Processing : ImportUiState()
-    data class Ready(val pack: StickerPack) : ImportUiState()
+    data class Ready(val packs: List<StickerPack>) : ImportUiState()
     data class Error(val message: String) : ImportUiState()
 }
 
-class ImportViewModel(private val context: Context) : ViewModel() {
+class ImportViewModel(context: Context) : ViewModel() {
 
     private val appContext = context.applicationContext
     private val json = Json { ignoreUnknownKeys = true }
@@ -48,66 +49,72 @@ class ImportViewModel(private val context: Context) : ViewModel() {
                         ?: return@withContext null
                     val extractDir = ZipUtils.extractZip(appContext, bytes) ?: return@withContext null
 
-                    // Find all WEBP files
-                    val webpFiles = extractDir.walkTopDown()
-                        .filter { it.isFile && it.extension.lowercase() == "webp" }
+                    val imageFiles = extractDir.walkTopDown()
+                        .filter { it.isFile && (it.extension.lowercase() == "webp" || it.extension.lowercase() == "png" || it.extension.lowercase() == "jpg") }
                         .sortedBy { it.name }
                         .toList()
 
-                    if (webpFiles.isEmpty()) return@withContext null
+                    if (imageFiles.isEmpty()) return@withContext null
 
-                    // Validate each file is 512×512
-                    val validStickers = webpFiles.filter { file ->
-                        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                        BitmapFactory.decodeFile(file.absolutePath, opts)
-                        opts.outWidth == 512 && opts.outHeight == 512
-                    }
+                    val limitedFiles = imageFiles.take(120)
+                    val basePackId = "import_${System.currentTimeMillis()}"
+                    
+                    val packs = limitedFiles.chunked(30).mapIndexed { packIdx, chunk ->
+                        val packId = "${basePackId}_p${packIdx + 1}"
+                        val packDir = File(appContext.filesDir, "stickers/$packId").apply { mkdirs() }
+                        
+                        val stickers = chunk.mapIndexedNotNull { idx, file ->
+                            try {
+                                val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return@mapIndexedNotNull null
+                                val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, 512, 512, true)
+                                val out = ByteArrayOutputStream()
+                                scaled.compress(android.graphics.Bitmap.CompressFormat.WEBP, 85, out)
+                                
+                                val destName = "%03d.webp".format(idx + 1)
+                                val destFile = File(packDir, destName)
+                                destFile.writeBytes(out.toByteArray())
 
-                    if (validStickers.isEmpty()) return@withContext null
+                                Sticker(
+                                    imageFileName = destName,
+                                    emojis = listOf("😀"),
+                                    localPath = destFile.absolutePath
+                                )
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
 
-                    val packId = "import_${System.currentTimeMillis()}"
-                    val packDir = File(appContext.filesDir, "stickers/$packId").apply { mkdirs() }
+                        if (stickers.size < 3) return@mapIndexed null
 
-                    // Copy valid stickers into app storage
-                    val stickers = validStickers.mapIndexed { idx, file ->
-                        val destName = "%03d.webp".format(idx + 1)
-                        file.copyTo(File(packDir, destName), overwrite = true)
-                        Sticker(
-                            imageFileName = destName,
-                            emojis = listOf("😀"),
-                            localPath = File(packDir, destName).absolutePath
+                        stickers.firstOrNull()?.let { first ->
+                            val bmp = BitmapFactory.decodeFile(first.localPath)
+                            val tray = android.graphics.Bitmap.createScaledBitmap(bmp, 96, 96, true)
+                            val out = ByteArrayOutputStream()
+                            tray.compress(android.graphics.Bitmap.CompressFormat.WEBP, 90, out)
+                            File(packDir, "tray.webp").writeBytes(out.toByteArray())
+                        }
+
+                        val pack = StickerPack(
+                            identifier = packId,
+                            name = "Imported Pack ${packIdx + 1}",
+                            publisher = "StickerTransfer",
+                            trayImageFile = "tray.webp",
+                            stickers = stickers,
+                            localDirectory = packDir.absolutePath
                         )
-                    }
 
-                    // Create tray icon from first sticker
-                    validStickers.firstOrNull()?.let { first ->
-                        val bmp = BitmapFactory.decodeFile(first.absolutePath)
-                        val tray = android.graphics.Bitmap.createScaledBitmap(bmp, 96, 96, true)
-                        val out = java.io.ByteArrayOutputStream()
-                        tray.compress(android.graphics.Bitmap.CompressFormat.WEBP_LOSSY, 90, out)
-                        File(packDir, "tray.webp").writeBytes(out.toByteArray())
-                    }
+                        val meta = StoredPackMeta(
+                            identifier = pack.identifier,
+                            name = pack.name,
+                            publisher = pack.publisher,
+                            trayImageFile = pack.trayImageFile,
+                            stickers = stickers.map { StoredStickerMeta(it.imageFileName, it.emojis) }
+                        )
+                        File(packDir, "meta.json").writeText(json.encodeToString(meta))
+                        pack
+                    }.filterNotNull()
 
-                    val pack = StickerPack(
-                        identifier = packId,
-                        name = "Imported Pack",
-                        publisher = "StickerTransfer",
-                        trayImageFile = "tray.webp",
-                        stickers = stickers,
-                        localDirectory = packDir.absolutePath
-                    )
-
-                    // Save metadata
-                    val meta = StoredPackMeta(
-                        identifier = pack.identifier,
-                        name = pack.name,
-                        publisher = pack.publisher,
-                        trayImageFile = pack.trayImageFile,
-                        stickers = stickers.map { StoredStickerMeta(it.imageFileName, it.emojis) }
-                    )
-                    File(packDir, "meta.json").writeText(json.encodeToString(meta))
-
-                    pack
+                    if (packs.isEmpty()) null else packs
                 } catch (e: Exception) {
                     null
                 }
@@ -115,7 +122,44 @@ class ImportViewModel(private val context: Context) : ViewModel() {
             if (result != null) {
                 _uiState.value = ImportUiState.Ready(result)
             } else {
-                _uiState.value = ImportUiState.Error("Invalid ZIP — ensure stickers are 512×512 WEBP files")
+                _uiState.value = ImportUiState.Error("Import failed. Ensure ZIP contains at least 3 images.")
+            }
+        }
+    }
+
+    fun renamePack(pack: StickerPack, newName: String) {
+        viewModelScope.launch {
+            val packDir = File(appContext.filesDir, "stickers/${pack.identifier}")
+            val metaFile = File(packDir, "meta.json")
+            if (metaFile.exists()) {
+                try {
+                    val meta = json.decodeFromString<StoredPackMeta>(metaFile.readText())
+                    val newMeta = meta.copy(name = newName)
+                    metaFile.writeText(json.encodeToString(newMeta))
+                    
+                    val currentState = _uiState.value
+                    if (currentState is ImportUiState.Ready) {
+                        val updatedPacks = currentState.packs.map {
+                            if (it.identifier == pack.identifier) it.copy(name = newName) else it
+                        }
+                        _uiState.value = ImportUiState.Ready(updatedPacks)
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    fun removePack(pack: StickerPack) {
+        viewModelScope.launch {
+            File(appContext.filesDir, "stickers/${pack.identifier}").deleteRecursively()
+            val currentState = _uiState.value
+            if (currentState is ImportUiState.Ready) {
+                val updatedPacks = currentState.packs.filter { it.identifier != pack.identifier }
+                if (updatedPacks.isEmpty()) {
+                    _uiState.value = ImportUiState.Idle
+                } else {
+                    _uiState.value = ImportUiState.Ready(updatedPacks)
+                }
             }
         }
     }
@@ -130,7 +174,10 @@ class ImportViewModel(private val context: Context) : ViewModel() {
             _snackbar.value = SnackbarMessage(if (business) "WhatsApp Business not installed" else "WhatsApp not installed")
             return
         }
-        WhatsAppUtils.addStickerPackToWhatsApp(appContext, pack, business)
+        val success = WhatsAppUtils.addStickerPackToWhatsApp(appContext, pack, business)
+        if (!success) {
+            _snackbar.value = SnackbarMessage("Failed to launch WhatsApp")
+        }
     }
 
     fun clearSnackbar() { _snackbar.value = null }

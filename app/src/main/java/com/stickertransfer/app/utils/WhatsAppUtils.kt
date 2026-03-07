@@ -2,7 +2,6 @@ package com.stickertransfer.app.utils
 
 import android.content.Context
 import android.content.Intent
-import com.stickertransfer.app.BuildConfig
 import com.stickertransfer.app.data.model.StickerPack
 
 object WhatsAppUtils {
@@ -29,23 +28,22 @@ object WhatsAppUtils {
         }
     }
 
-    /**
-     * Launch the WhatsApp "Add Sticker Pack" intent.
-     * WhatsApp will call back to our StickerContentProvider to retrieve pack data.
-     */
     fun addStickerPackToWhatsApp(
         context: Context,
         pack: StickerPack,
         useWhatsAppBusiness: Boolean = false
     ): Boolean {
         val targetPackage = if (useWhatsAppBusiness) WHATSAPP_BUSINESS_PACKAGE else WHATSAPP_PACKAGE
-        if (!isPackageInstalled(context, targetPackage)) return false
+        // Dynamically get the authority based on the current package name (works for .debug too)
+        val authority = "${context.packageName}.StickerContentProvider"
 
         val intent = Intent(ADD_PACK_ACTION).apply {
             setPackage(targetPackage)
             putExtra(EXTRA_STICKER_PACK_ID, pack.identifier)
-            putExtra(EXTRA_STICKER_PACK_AUTHORITY, BuildConfig.PROVIDER_AUTHORITY)
+            putExtra(EXTRA_STICKER_PACK_AUTHORITY, authority)
             putExtra(EXTRA_STICKER_PACK_NAME, pack.name)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
 
         return try {

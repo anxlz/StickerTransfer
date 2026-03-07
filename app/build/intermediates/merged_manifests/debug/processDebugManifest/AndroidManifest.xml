@@ -19,6 +19,10 @@
     <queries>
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
+
+        <intent>
+            <action android:name="com.whatsapp.intent.action.ENABLE_STICKER_PACK" />
+        </intent>
     </queries>
 
     <permission
@@ -36,7 +40,6 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:testOnly="true"
         android:theme="@style/Theme.StickerTransfer"
         android:usesCleartextTraffic="false" >
         <activity
@@ -54,7 +57,9 @@
         <provider
             android:name="com.stickertransfer.app.provider.StickerContentProvider"
             android:authorities="com.stickertransfer.app.debug.StickerContentProvider"
+            android:enabled="true"
             android:exported="true"
+            android:grantUriPermissions="true"
             android:readPermission="com.whatsapp.permission.STICKERS" />
         <provider
             android:name="androidx.core.content.FileProvider"

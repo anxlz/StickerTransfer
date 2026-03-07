@@ -7,29 +7,18 @@ import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
 import android.os.ParcelFileDescriptor
-import com.stickertransfer.app.BuildConfig
 import com.stickertransfer.app.data.model.StickerPack
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
-import com.stickertransfer.app.data.model.StickerPacksJson
 import java.io.File
 
-/**
- * Content provider required by WhatsApp sticker protocol.
- *
- * WhatsApp queries:
- *   content://{authority}/metadata           → list of all sticker packs
- *   content://{authority}/stickers/{id}      → stickers for a specific pack
- *   content://{authority}/stickers/{id}/{file} → raw sticker file bytes
- */
 class StickerContentProvider : ContentProvider() {
 
     companion object {
         private const val METADATA = 1
-        private const val METADATA_CODE_FOR_SINGLE_PACK = 2
+        private const val METADATA_SINGLE = 2
         private const val STICKERS = 3
         private const val STICKERS_ASSET = 4
-        private const val STICKER_PACK_TRAY_ICON = 5
 
         private val METADATA_COLUMNS = arrayOf(
             "sticker_pack_id",
@@ -53,14 +42,21 @@ class StickerContentProvider : ContentProvider() {
         )
     }
 
-    private val uriMatcher by lazy {
-        UriMatcher(UriMatcher.NO_MATCH).apply {
-            addURI(BuildConfig.PROVIDER_AUTHORITY, "metadata", METADATA)
-            addURI(BuildConfig.PROVIDER_AUTHORITY, "metadata/*", METADATA_CODE_FOR_SINGLE_PACK)
-            addURI(BuildConfig.PROVIDER_AUTHORITY, "stickers/*", STICKERS)
-            addURI(BuildConfig.PROVIDER_AUTHORITY, "stickers/*/*", STICKERS_ASSET)
-            addURI(BuildConfig.PROVIDER_AUTHORITY, "stickers_asset/*/tray_icon.webp", STICKER_PACK_TRAY_ICON)
+    private var uriMatcher: UriMatcher? = null
+
+    private fun getUriMatcher(): UriMatcher {
+        val matcher = uriMatcher
+        if (matcher != null) return matcher
+
+        val authority = context?.let { "${it.packageName}.StickerContentProvider" } ?: "com.stickertransfer.app.StickerContentProvider"
+        val newMatcher = UriMatcher(UriMatcher.NO_MATCH).apply {
+            addURI(authority, "metadata", METADATA)
+            addURI(authority, "metadata/*", METADATA_SINGLE)
+            addURI(authority, "stickers/*", STICKERS)
+            addURI(authority, "stickers_asset/*/*", STICKERS_ASSET)
         }
+        uriMatcher = newMatcher
+        return newMatcher
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -93,48 +89,25 @@ class StickerContentProvider : ContentProvider() {
         selectionArgs: Array<String>?,
         sortOrder: String?
     ): Cursor? {
-        val ctx = context ?: return null
-        return when (uriMatcher.match(uri)) {
+        return when (getUriMatcher().match(uri)) {
             METADATA -> {
-                val packs = loadStickerPacks()
                 val cursor = MatrixCursor(METADATA_COLUMNS)
-                packs.forEach { pack ->
-                    cursor.addRow(arrayOf(
-                        pack.identifier,
-                        pack.name,
-                        pack.publisher,
-                        pack.trayImageFile,
-                        "", "", "", "", "", "",
-                        pack.imageDataVersion,
-                        if (pack.avoidCache) 1 else 0,
-                        if (pack.animatedStickerPack) 1 else 0
-                    ))
-                }
+                loadStickerPacks().forEach { pack -> addPackRow(cursor, pack) }
                 cursor
             }
-            METADATA_CODE_FOR_SINGLE_PACK -> {
+            METADATA_SINGLE -> {
                 val identifier = uri.lastPathSegment ?: return null
-                val packs = loadStickerPacks()
-                val pack = packs.find { it.identifier == identifier } ?: return null
+                val pack = loadStickerPacks().find { it.identifier == identifier } ?: return null
                 val cursor = MatrixCursor(METADATA_COLUMNS)
-                cursor.addRow(arrayOf(
-                    pack.identifier, pack.name, pack.publisher, pack.trayImageFile,
-                    "", "", "", "", "", "",
-                    pack.imageDataVersion, if (pack.avoidCache) 1 else 0,
-                    if (pack.animatedStickerPack) 1 else 0
-                ))
+                addPackRow(cursor, pack)
                 cursor
             }
             STICKERS -> {
                 val identifier = uri.lastPathSegment ?: return null
-                val packs = loadStickerPacks()
-                val pack = packs.find { it.identifier == identifier } ?: return null
+                val pack = loadStickerPacks().find { it.identifier == identifier } ?: return null
                 val cursor = MatrixCursor(STICKERS_COLUMNS)
                 pack.stickers.forEach { sticker ->
-                    cursor.addRow(arrayOf(
-                        sticker.imageFileName,
-                        sticker.emojis.joinToString("")
-                    ))
+                    cursor.addRow(arrayOf(sticker.imageFileName, sticker.emojis.joinToString("")))
                 }
                 cursor
             }
@@ -142,24 +115,23 @@ class StickerContentProvider : ContentProvider() {
         }
     }
 
+    private fun addPackRow(cursor: MatrixCursor, pack: StickerPack) {
+        cursor.addRow(arrayOf(
+            pack.identifier, pack.name, pack.publisher, pack.trayImageFile,
+            "", "", "", "", "", "",
+            pack.imageDataVersion, if (pack.avoidCache) 1 else 0,
+            if (pack.animatedStickerPack) 1 else 0
+        ))
+    }
+
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor? {
         val ctx = context ?: return null
-        return when (uriMatcher.match(uri)) {
+        return when (getUriMatcher().match(uri)) {
             STICKERS_ASSET -> {
-                // content://{auth}/stickers/{identifier}/{filename}
                 val segments = uri.pathSegments
-                if (segments.size < 3) return null
-                val identifier = segments[1]
-                val fileName = segments[2]
+                val identifier = segments[segments.size - 2]
+                val fileName = segments[segments.size - 1]
                 val file = File(ctx.filesDir, "stickers/$identifier/$fileName")
-                if (!file.exists()) return null
-                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-            }
-            STICKER_PACK_TRAY_ICON -> {
-                val segments = uri.pathSegments
-                if (segments.size < 2) return null
-                val identifier = segments[1]
-                val file = File(ctx.filesDir, "stickers/$identifier/tray.webp")
                 if (!file.exists()) return null
                 ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
             }
@@ -167,14 +139,14 @@ class StickerContentProvider : ContentProvider() {
         }
     }
 
-    override fun getType(uri: Uri): String = when (uriMatcher.match(uri)) {
-        METADATA, METADATA_CODE_FOR_SINGLE_PACK ->
-            "vnd.android.cursor.dir/vnd.${BuildConfig.PROVIDER_AUTHORITY}.metadata"
-        STICKERS ->
-            "vnd.android.cursor.dir/vnd.${BuildConfig.PROVIDER_AUTHORITY}.stickers"
-        STICKERS_ASSET ->
-            "image/webp"
-        else -> throw IllegalArgumentException("Unknown URI: $uri")
+    override fun getType(uri: Uri): String? {
+        val authority = context?.let { "${it.packageName}.StickerContentProvider" } ?: "com.stickertransfer.app.StickerContentProvider"
+        return when (getUriMatcher().match(uri)) {
+            METADATA, METADATA_SINGLE -> "vnd.android.cursor.dir/vnd.$authority.metadata"
+            STICKERS -> "vnd.android.cursor.dir/vnd.$authority.stickers"
+            STICKERS_ASSET -> "image/webp"
+            else -> null
+        }
     }
 
     override fun insert(uri: Uri, values: ContentValues?) = null

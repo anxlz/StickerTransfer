@@ -23,13 +23,11 @@ import java.io.File
 sealed class HomeUiState {
     object Idle : HomeUiState()
     object Loading : HomeUiState()
-    data class PackLoaded(val pack: StickerPack) : HomeUiState()
-    data class Downloading(val current: Int, val total: Int) : HomeUiState()
-    data class Downloaded(val pack: StickerPack) : HomeUiState()
+    data class PackLoaded(val packs: List<StickerPack>) : HomeUiState()
+    data class Downloading(val current: Int, val total: Int, val packIdentifier: String, val packs: List<StickerPack>) : HomeUiState()
+    data class Downloaded(val packs: List<StickerPack>) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
 }
-
-data class SnackbarMessage(val text: String, val id: Long = System.currentTimeMillis())
 
 class HomeViewModel(context: Context) : ViewModel() {
 
@@ -74,7 +72,7 @@ class HomeViewModel(context: Context) : ViewModel() {
                 return@launch
             }
             _uiState.value = HomeUiState.Loading
-            when (val result = repository.fetchStickerPack(token, packName)) {
+            when (val result = repository.fetchStickerPackParts(token, packName)) {
                 is Result.Success -> _uiState.value = HomeUiState.PackLoaded(result.data)
                 is Result.Error -> _uiState.value = HomeUiState.Error(result.message)
                 else -> {}
@@ -85,17 +83,77 @@ class HomeViewModel(context: Context) : ViewModel() {
     fun downloadPack(pack: StickerPack) {
         viewModelScope.launch {
             val token = prefsRepo.botTokenFlow.first()
-            _uiState.value = HomeUiState.Downloading(0, pack.stickers.size)
+            val currentPacks = when (val state = _uiState.value) {
+                is HomeUiState.PackLoaded -> state.packs
+                is HomeUiState.Downloaded -> state.packs
+                is HomeUiState.Downloading -> state.packs
+                else -> emptyList()
+            }
+            
+            _uiState.value = HomeUiState.Downloading(0, pack.stickers.size, pack.identifier, currentPacks)
             val result = repository.downloadAndConvertPack(token, pack) { cur, tot ->
-                _uiState.value = HomeUiState.Downloading(cur, tot)
+                _uiState.value = HomeUiState.Downloading(cur, tot, pack.identifier, currentPacks)
             }
             when (result) {
                 is Result.Success -> {
                     savePackMeta(result.data)
-                    _uiState.value = HomeUiState.Downloaded(result.data)
+                    val updatedPacks = currentPacks.map { 
+                        if (it.identifier == result.data.identifier) result.data else it 
+                    }
+                    _uiState.value = HomeUiState.Downloaded(updatedPacks)
                 }
                 is Result.Error -> _uiState.value = HomeUiState.Error(result.message)
                 else -> {}
+            }
+        }
+    }
+
+    fun renamePack(pack: StickerPack, newName: String) {
+        viewModelScope.launch {
+            val packDir = File(appContext.filesDir, "stickers/${pack.identifier}")
+            val metaFile = File(packDir, "meta.json")
+            if (metaFile.exists()) {
+                try {
+                    val meta = json.decodeFromString<StoredPackMeta>(metaFile.readText())
+                    val newMeta = meta.copy(name = newName)
+                    metaFile.writeText(json.encodeToString(newMeta))
+                    
+                    updatePacksInState(pack.identifier, newName)
+                } catch (_: Exception) {}
+            } else {
+                // If not downloaded yet, just update in state
+                updatePacksInState(pack.identifier, newName)
+            }
+        }
+    }
+    
+    private fun updatePacksInState(identifier: String, newName: String) {
+        val currentState = _uiState.value
+        if (currentState is HomeUiState.Downloaded) {
+            val updatedPacks = currentState.packs.map {
+                if (it.identifier == identifier) it.copy(name = newName) else it
+            }
+            _uiState.value = HomeUiState.Downloaded(updatedPacks)
+        } else if (currentState is HomeUiState.PackLoaded) {
+             val updatedPacks = currentState.packs.map {
+                if (it.identifier == identifier) it.copy(name = newName) else it
+            }
+            _uiState.value = HomeUiState.PackLoaded(updatedPacks)
+        }
+    }
+
+    fun removePack(pack: StickerPack) {
+        viewModelScope.launch {
+            repository.deletePack(pack.identifier)
+            val currentState = _uiState.value
+            if (currentState is HomeUiState.Downloaded) {
+                val updatedPacks = currentState.packs.filter { it.identifier != pack.identifier }
+                if (updatedPacks.isEmpty()) _uiState.value = HomeUiState.Idle
+                else _uiState.value = HomeUiState.Downloaded(updatedPacks)
+            } else if (currentState is HomeUiState.PackLoaded) {
+                val updatedPacks = currentState.packs.filter { it.identifier != pack.identifier }
+                if (updatedPacks.isEmpty()) _uiState.value = HomeUiState.Idle
+                else _uiState.value = HomeUiState.PackLoaded(updatedPacks)
             }
         }
     }
@@ -137,7 +195,6 @@ class HomeViewModel(context: Context) : ViewModel() {
         _snackbar.value = SnackbarMessage(msg)
     }
 
-    /** Persist pack metadata so ContentProvider can serve it to WhatsApp */
     private fun savePackMeta(pack: StickerPack) {
         try {
             val meta = StoredPackMeta(

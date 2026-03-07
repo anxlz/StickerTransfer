@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.stickertransfer.app.data.model.StickerPack
 import com.stickertransfer.app.ui.viewmodels.ImportUiState
 import com.stickertransfer.app.ui.viewmodels.ImportViewModel
 
@@ -86,12 +87,25 @@ fun ImportScreen(viewModel: ImportViewModel) {
                 when (state) {
                     ImportUiState.Idle -> ImportIdleCard { zipPicker.launch("application/zip") }
                     ImportUiState.Processing -> LoadingCard("Processing ZIP…")
-                    is ImportUiState.Ready -> ImportReadyCard(
-                        pack = state.pack,
-                        onAddToWhatsApp = { viewModel.addToWhatsApp(state.pack, false) },
-                        onAddToWhatsAppBusiness = { viewModel.addToWhatsApp(state.pack, true) },
-                        onReset = { viewModel.reset() }
-                    )
+                    is ImportUiState.Ready -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(
+                            "Pack Split into ${state.packs.size} Parts",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        state.packs.forEach { pack ->
+                            ImportReadyCard(
+                                pack = pack,
+                                onAddToWhatsApp = { viewModel.addToWhatsApp(pack, false) },
+                                onAddToWhatsAppBusiness = { viewModel.addToWhatsApp(pack, true) },
+                                onRename = { newName -> viewModel.renamePack(pack, newName) },
+                                onRemove = { viewModel.removePack(pack) }
+                            )
+                        }
+                        TextButton(onClick = { viewModel.reset() }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Clear All and Start Over")
+                        }
+                    }
                     is ImportUiState.Error -> ImportErrorCard(state.message) {
                         viewModel.reset()
                     }
@@ -127,11 +141,11 @@ fun ImportScreen(viewModel: ImportViewModel) {
                         )
                     }
                     val requirements = listOf(
-                        "WEBP format (.webp extension)",
-                        "Exactly 512 × 512 pixels",
+                        "WEBP, PNG, or JPG format",
+                        "Automatically resized to 512 × 512 pixels",
                         "Under 100 KB per sticker",
-                        "3–30 stickers per pack",
-                        "Animated WEBP supported"
+                        "Large ZIPs split into parts of 30",
+                        "Up to 120 stickers total"
                     )
                     requirements.forEach { req ->
                         Row(
@@ -187,40 +201,11 @@ private fun ImportIdleCard(onPickZip: () -> Unit) {
                 textAlign = TextAlign.Center
             )
             Text(
-                "Select a ZIP file containing 512×512 WEBP sticker images",
+                "ZIPs with more than 30 stickers will be automatically split into parts.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            // Dashed drop zone
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(
-                        width = 2.dp,
-                        color = MaterialTheme.colorScheme.outline,
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        Icons.Default.UploadFile,
-                        null,
-                        tint = MaterialTheme.colorScheme.outline
-                    )
-                    Text(
-                        "Tap to browse",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            }
             Button(
                 onClick = onPickZip,
                 modifier = Modifier
@@ -257,12 +242,16 @@ private fun LoadingCard(message: String) {
 
 @Composable
 private fun ImportReadyCard(
-    pack: com.stickertransfer.app.data.model.StickerPack,
+    pack: StickerPack,
     onAddToWhatsApp: () -> Unit,
     onAddToWhatsAppBusiness: () -> Unit,
-    onReset: () -> Unit
+    onRename: (String) -> Unit,
+    onRemove: () -> Unit
 ) {
     val context = LocalContext.current
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var newNameInput by remember { mutableStateOf(pack.name) }
+
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp)
@@ -281,20 +270,29 @@ private fun ImportReadyCard(
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    "Pack Ready — ${pack.stickers.size} stickers",
+                    pack.name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
                 )
+                IconButton(onClick = { showRenameDialog = true }) {
+                    Icon(Icons.Default.Edit, "Rename")
+                }
+                IconButton(onClick = onRemove) {
+                    Icon(Icons.Default.Delete, "Remove", tint = MaterialTheme.colorScheme.error)
+                }
             }
+
+            Text("${pack.stickers.size} stickers in this part", style = MaterialTheme.typography.bodySmall)
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),
-                modifier = Modifier.height(200.dp),
+                modifier = Modifier.height(120.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 userScrollEnabled = false
             ) {
-                items(pack.stickers.take(8)) { sticker ->
+                items(pack.stickers.take(4)) { sticker ->
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(sticker.localPath)
@@ -310,34 +308,51 @@ private fun ImportReadyCard(
                 }
             }
 
-            HorizontalDivider()
-
-            Button(
-                onClick = onAddToWhatsApp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(Icons.Default.Message, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Add to WhatsApp")
-            }
-            OutlinedButton(
-                onClick = onAddToWhatsAppBusiness,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(Icons.Default.Business, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Add to WhatsApp Business")
-            }
-            TextButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) {
-                Text("Import Another Pack")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onAddToWhatsApp,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("WhatsApp", style = MaterialTheme.typography.labelMedium)
+                }
+                OutlinedButton(
+                    onClick = onAddToWhatsAppBusiness,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Business, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Business", style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
+    }
+
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename Pack") },
+            text = {
+                OutlinedTextField(
+                    value = newNameInput,
+                    onValueChange = { newNameInput = it },
+                    label = { Text("New Name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onRename(newNameInput)
+                    showRenameDialog = false
+                }) { Text("Rename") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -353,7 +368,7 @@ private fun ImportErrorCard(message: String, onDismiss: () -> Unit) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.Error, null, tint = MaterialTheme.colorScheme.error)
-                Text("Invalid ZIP File", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Error", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
             Text(message, style = MaterialTheme.typography.bodyMedium)
             TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {

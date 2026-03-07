@@ -138,20 +138,35 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 when (state) {
                     is HomeUiState.Loading -> LoadingCard("Fetching sticker pack…")
                     is HomeUiState.Downloading -> DownloadProgressCard(state.current, state.total)
-                    is HomeUiState.PackLoaded -> PackPreviewCard(
-                        pack = state.pack,
-                        isDownloaded = false,
-                        onDownloadZip = { viewModel.downloadPack(state.pack) },
-                        onAddToWhatsApp = { viewModel.downloadPack(state.pack) },
-                        onAddToWhatsAppBusiness = { viewModel.downloadPack(state.pack) }
-                    )
-                    is HomeUiState.Downloaded -> PackPreviewCard(
-                        pack = state.pack,
-                        isDownloaded = true,
-                        onDownloadZip = { viewModel.exportAsZip(state.pack) },
-                        onAddToWhatsApp = { viewModel.addToWhatsApp(state.pack, false) },
-                        onAddToWhatsAppBusiness = { viewModel.addToWhatsApp(state.pack, true) }
-                    )
+                    is HomeUiState.PackLoaded -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(
+                            "Pack Split into ${state.packs.size} Parts",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        state.packs.forEach { pack ->
+                            PackPreviewCard(
+                                pack = pack,
+                                isDownloaded = false,
+                                onAction = { viewModel.downloadPack(pack) },
+                                onActionBusiness = { viewModel.downloadPack(pack) },
+                                onRename = { newName -> viewModel.renamePack(pack, newName) },
+                                onRemove = { viewModel.removePack(pack) }
+                            )
+                        }
+                    }
+                    is HomeUiState.Downloaded -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        state.packs.forEach { pack ->
+                            PackPreviewCard(
+                                pack = pack,
+                                isDownloaded = true,
+                                onAction = { viewModel.addToWhatsApp(pack, false) },
+                                onActionBusiness = { viewModel.addToWhatsApp(pack, true) },
+                                onRename = { newName -> viewModel.renamePack(pack, newName) },
+                                onRemove = { viewModel.removePack(pack) }
+                            )
+                        }
+                    }
                     is HomeUiState.Error -> ErrorCard(state.message) { viewModel.dismissError() }
                     HomeUiState.Idle -> BotTokenHint(hasToken = botToken.isNotBlank()) {
                         showSettingsDialog = true
@@ -258,11 +273,16 @@ private fun DownloadProgressCard(current: Int, total: Int) {
 private fun PackPreviewCard(
     pack: StickerPack,
     isDownloaded: Boolean,
-    onDownloadZip: () -> Unit,
-    onAddToWhatsApp: () -> Unit,
-    onAddToWhatsAppBusiness: () -> Unit
+    onAction: () -> Unit,
+    onActionBusiness: () -> Unit,
+    onRename: (String) -> Unit,
+    onRemove: () -> Unit
 ) {
     val context = LocalContext.current
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var newNameInput by remember { mutableStateOf(pack.name) }
+    var showMenu by remember { mutableStateOf(false) }
+
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp)
@@ -280,15 +300,15 @@ private fun PackPreviewCard(
                 val firstSticker = pack.stickers.firstOrNull()
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.secondaryContainer)
                 ) {
                     if (firstSticker != null) {
                         val imageModel = if (isDownloaded && firstSticker.localPath.isNotEmpty())
                             firstSticker.localPath
                         else
-                            "https://t.me/i/stickers/${pack.identifier}/1.webp" // fallback
+                            "https://t.me/i/stickers/${pack.identifier.substringBefore("_p")}/1.webp"
                         AsyncImage(
                             model = ImageRequest.Builder(context)
                                 .data(imageModel)
@@ -307,34 +327,49 @@ private fun PackPreviewCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        pack.publisher,
+                        "${pack.stickers.size} stickers",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(4.dp))
-                    AssistChip(
-                        onClick = {},
-                        label = { Text("${pack.stickers.size} stickers") },
-                        leadingIcon = { Icon(Icons.Default.EmojiEmotions, null, Modifier.size(16.dp)) }
-                    )
+                }
+                
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, "Options")
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Rename") },
+                            onClick = {
+                                showMenu = false
+                                showRenameDialog = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.Edit, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Remove") },
+                            onClick = {
+                                showMenu = false
+                                onRemove()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
+                        )
+                    }
                 }
             }
 
             if (isDownloaded && pack.stickers.isNotEmpty()) {
-                // Sticker grid preview (first 8)
-                Text(
-                    "Preview",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
-                    modifier = Modifier.height(200.dp),
+                    columns = GridCells.Fixed(5),
+                    modifier = Modifier.height(100.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     userScrollEnabled = false
                 ) {
-                    items(pack.stickers.take(8)) { sticker ->
+                    items(pack.stickers.take(5)) { sticker ->
                         AsyncImage(
                             model = ImageRequest.Builder(context)
                                 .data(sticker.localPath)
@@ -351,69 +386,50 @@ private fun PackPreviewCard(
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            // Action buttons
-            if (!isDownloaded) {
-                Text(
-                    "Download stickers first to use them",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = onDownloadZip,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(14.dp)
+                    onClick = onAction,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.Download, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Download & Load Pack")
+                    val label = if (isDownloaded) "WhatsApp" else "Download"
+                    Text(label, style = MaterialTheme.typography.labelMedium)
                 }
-            } else {
-                // ZIP export
-                OutlinedButton(
-                    onClick = onDownloadZip,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Icon(Icons.Default.FolderZip, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Download as ZIP")
-                }
-                // WhatsApp buttons
-                Button(
-                    onClick = onAddToWhatsApp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Icon(Icons.Default.Message, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Add to WhatsApp")
-                }
-                OutlinedButton(
-                    onClick = onAddToWhatsAppBusiness,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Icon(Icons.Default.Business, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Add to WhatsApp Business")
+                if (isDownloaded) {
+                    OutlinedButton(
+                        onClick = onActionBusiness,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Business", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
         }
+    }
+
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename Pack") },
+            text = {
+                OutlinedTextField(
+                    value = newNameInput,
+                    onValueChange = { newNameInput = it },
+                    label = { Text("New Name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onRename(newNameInput)
+                    showRenameDialog = false
+                }) { Text("Rename") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -434,29 +450,11 @@ private fun ErrorCard(message: String, onDismiss: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    Icons.Default.Error,
-                    null,
-                    tint = MaterialTheme.colorScheme.error
-                )
-                Text(
-                    "Error",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Icon(Icons.Default.Error, null, tint = MaterialTheme.colorScheme.error)
+                Text("Error", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             }
-            Text(
-                message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer
-            )
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
-                )
-            ) {
+            Text(message, style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                 Text("Dismiss")
             }
         }
@@ -482,18 +480,9 @@ private fun BotTokenHint(hasToken: Boolean, onSetupToken: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.secondary)
-                    Text(
-                        "Setup Required",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                    Text("Setup Required", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 }
-                Text(
-                    "A free Telegram Bot Token is required to download sticker packs. Tap Settings to get started.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
+                Text("A free Telegram Bot Token is required. Tap Settings to get started.", style = MaterialTheme.typography.bodyMedium)
                 FilledTonalButton(onClick = onSetupToken) {
                     Icon(Icons.Outlined.Settings, null)
                     Spacer(Modifier.width(6.dp))
