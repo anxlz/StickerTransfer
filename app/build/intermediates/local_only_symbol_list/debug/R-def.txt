@@ -1,0 +1,19 @@
+R_DEF: Internal format may change without notice
+local
+string add_to_whatsapp
+string add_to_whatsapp_business
+string app_name
+string bot_token_hint
+string bot_token_label
+string download_success
+string download_zip
+string home_tab
+string import_tab
+string invalid_link
+string load_pack_button
+string paste_link_label
+string settings
+string sticker_count
+string whatsapp_not_installed
+style Theme.StickerTransfer
+xml file_paths
