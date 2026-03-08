@@ -1,279 +1,161 @@
-# StickerTransfer — Android App
+<div align="center">
 
-Transfer Telegram sticker packs directly to WhatsApp or export as ZIP.
-Built with **Kotlin + Jetpack Compose + Material You (MD3)**.
+<img src="assets/icon.png" width="120" height="120" style="border-radius:50%" />
+
+# StickerTransfer
+
+**Transfer Telegram sticker packs directly to WhatsApp — no PC required.**
+
+[![Android](https://img.shields.io/badge/android-7.0%2B-brightgreen)](https://github.com/anxlz/StickerTransfer/releases/latest)
+[![Release](https://img.shields.io/github/v/release/anxlz/StickerTransfer)](https://github.com/anxlz/StickerTransfer/releases/latest)
+[![License](https://img.shields.io/github/license/anxlz/StickerTransfer)](https://github.com/anxlz/StickerTransfer/blob/main/LICENSE)
+[![Stars](https://img.shields.io/github/stars/anxlz/StickerTransfer)](https://github.com/anxlz/StickerTransfer/stargazers)
+
+[**Download APK**](https://github.com/anxlz/StickerTransfer/releases/latest) • [**Report Bug**](https://github.com/anxlz/StickerTransfer/issues) • [**Request Feature**](https://github.com/anxlz/StickerTransfer/issues)
+
+</div>
 
 ---
 
-## Screenshots / Features
+## Features
 
-| Home Screen | Import Screen |
+- 🔽 **Telegram Download** — Paste any `t.me/addstickers/` link to download up to 120 stickers
+- 💬 **WhatsApp Integration** — Add packs directly to WhatsApp or WhatsApp Business
+- ✂️ **Auto Split** — Packs are automatically split into parts of 30 stickers (WhatsApp limit)
+- 📦 **ZIP Export** — Export any pack as a `.zip` file to your Downloads folder
+- 📥 **ZIP Import** — Import your own 512×512 WEBP sticker packs
+- 🎨 **Material You** — Dynamic color theming with full dark/light mode support
+- 🔒 **Privacy First** — Bot token stored locally, no data sent anywhere except Telegram API
+
+---
+
+## Screenshots
+
+<div align="center">
+<img src="assets/screenshots/1.png" width="19%" />
+<img src="assets/screenshots/2.png" width="19%" />
+<img src="assets/screenshots/3.png" width="19%" />
+<img src="assets/screenshots/4.png" width="19%" />
+<img src="assets/screenshots/5.png" width="19%" />
+</div>
+
+---
+
+## Download
+
+<div align="center">
+
+[![Download APK](https://img.shields.io/badge/Download-APK-brightgreen?style=for-the-badge&logo=android)](https://github.com/anxlz/StickerTransfer/releases/latest)
+
+</div>
+
+> **Note:** Enable *Install unknown apps* in your Android settings before installing.
+
+---
+
+## Requirements
+
+| Requirement | Version |
 |---|---|
-| Load any Telegram sticker pack via share link | Import your own WEBP ZIP packs |
-| Preview + sticker grid | 512×512 WEBP validation |
-| Download as ZIP | Add to WhatsApp / WA Business |
-| Add to WhatsApp directly | |
+| Android | 7.0+ (API 24) |
+| WhatsApp | 2.19.51+ |
+| Telegram Bot Token | Free — from [@BotFather](https://t.me/BotFather) |
 
 ---
 
-## Architecture
+## Setup
+
+1. Install the APK from [Releases](https://github.com/anxlz/StickerTransfer/releases/latest)
+2. Open the app → tap **⚙️ Settings** (top-right)
+3. Enter your Telegram Bot Token from [@BotFather](https://t.me/BotFather)
+4. Paste any sticker pack link and tap **Load**
+
+**Example links to try:**
+```
+https://t.me/addstickers/Animals
+https://t.me/addstickers/HotCherry
+```
+
+---
+
+## How It Works
 
 ```
-app/
-├── data/
-│   ├── model/          # StickerPack, TelegramModels
-│   ├── network/        # TelegramApiService (Ktor), PreferencesRepository
-│   └── repository/     # StickerRepository (fetch, download, convert)
-├── provider/           # StickerContentProvider (WhatsApp protocol)
-├── ui/
-│   ├── navigation/     # NavGraph, Screen sealed class
-│   ├── screens/        # HomeScreen, ImportScreen
-│   ├── theme/          # Material You theme, Color, Type
-│   └── viewmodels/     # HomeViewModel, ImportViewModel
-└── utils/              # WhatsAppUtils, ZipUtils
+Paste t.me/addstickers/PackName
+        ↓
+Fetch metadata via Telegram Bot API
+        ↓
+Download & convert to 512×512 WEBP
+        ↓
+Split into parts (max 30 stickers each)
+        ↓
+Add to WhatsApp via StickerContentProvider
 ```
 
-**Stack:** MVVM · Repository pattern · Coroutines · StateFlow · Jetpack Compose · Material3
-
 ---
 
-## Prerequisites
-
-| Tool | Version |
-|---|---|
-| Android Studio | Hedgehog 2023.1.1+ or newer |
-| JDK | 17+ |
-| Android SDK | API 34 (compile), API 24 (min) |
-| Kotlin | 1.9.22 |
-
----
-
-## Setup (One-Time)
-
-### 1. Get a Telegram Bot Token (Free)
-
-> The app uses the official Telegram Bot API to download sticker packs.
-
-1. Open Telegram → search **@BotFather**
-2. Send `/newbot`
-3. Follow the prompts (name + username)
-4. Copy the token — looks like: `1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ`
-
-You enter this token inside the app (Settings icon → top-right).
-It is stored locally on your device only.
-
-### 2. Clone / Open Project
+## Build From Source
 
 ```bash
-git clone https://github.com/yourname/StickerTransfer.git
-# OR extract the ZIP
-```
+# Clone the repository
+git clone https://github.com/anxlz/StickerTransfer.git
+cd StickerTransfer
 
-Open **Android Studio** → `File > Open` → select the `StickerTransfer` folder.
-
-Wait for Gradle sync to complete (~2-5 min first time).
-
----
-
-## Building the APK
-
-### Option A — Debug APK (fastest, for testing)
-
-```bash
-# From project root:
+# Build debug APK
 ./gradlew assembleDebug
+
+# APK output
+app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Output: `app/build/outputs/apk/debug/app-debug.apk`
-
-### Option B — Release APK (optimized, for distribution)
-
-#### 1. Create a keystore (one time only)
-
-```bash
-keytool -genkey -v \
-  -keystore stickertransfer.jks \
-  -alias stickertransfer \
-  -keyalg RSA \
-  -keysize 2048 \
-  -validity 10000
-```
-
-#### 2. Add signing config to `app/build.gradle.kts`
-
-```kotlin
-android {
-    signingConfigs {
-        create("release") {
-            storeFile = file("../stickertransfer.jks")
-            storePassword = "YOUR_STORE_PASSWORD"
-            keyAlias = "stickertransfer"
-            keyPassword = "YOUR_KEY_PASSWORD"
-        }
-    }
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("release")
-            // ... rest unchanged
-        }
-    }
-}
-```
-
-#### 3. Build release
-
-```bash
-./gradlew assembleRelease
-```
-
-Output: `app/build/outputs/apk/release/app-release.apk`
-
-### Option C — Android Studio GUI
-
-1. Build menu → **Generate Signed Bundle / APK**
-2. Choose **APK**
-3. Select / create keystore
-4. Choose `release` build variant
-5. Click **Finish**
+**Requirements:** Android Studio Hedgehog+, JDK 17, Android SDK 34
 
 ---
 
-## Installing the APK
+## Tech Stack
 
-### Via ADB (USB debugging)
-
-```bash
-# Enable USB Debugging on your device first
-adb install app/build/outputs/apk/debug/app-debug.apk
-```
-
-### Direct install
-
-1. Copy `app-debug.apk` to your device
-2. Open it from Files app
-3. Allow "Install unknown apps" if prompted
-
----
-
-## Testing WhatsApp Integration
-
-### Checklist
-
-- [x] WhatsApp 2.19.51+ installed
-- [x] Sticker pack fully downloaded (green checkmark state)
-- [x] Tap **Add to WhatsApp**
-- [x] WhatsApp opens with sticker pack preview
-- [x] Tap **Add** inside WhatsApp
-
-### Troubleshooting
-
-| Issue | Fix |
+| Layer | Technology |
 |---|---|
-| "WhatsApp not installed" | Install WhatsApp from Play Store |
-| WhatsApp opens but pack empty | Ensure download completed first |
-| "Failed to launch WhatsApp" | WhatsApp version too old — update |
-| Stickers appear low quality | Normal — WEBP compression applied |
-| Bot token error | Verify token from @BotFather |
-| "Pack not found" | Check pack name spelling (case-sensitive) |
-
-### Content Provider Verification
-
-```bash
-# Query our sticker provider
-adb shell content query \
-  --uri content://com.stickertransfer.app.debug.StickerContentProvider/metadata
-```
+| Language | Kotlin |
+| UI | Jetpack Compose + Material You (MD3) |
+| Architecture | MVVM + Repository + StateFlow |
+| HTTP Client | Ktor |
+| Image Loading | Coil |
+| Storage | DataStore Preferences |
+| Build | Gradle Kotlin DSL |
 
 ---
 
-## How Telegram Download Works
+## Contributing
 
-```
-User pastes link
-        ↓
-Parse: t.me/addstickers/{packName}
-        ↓
-Bot API: getStickerSet?name={packName}
-  → Returns sticker metadata + file_ids
-        ↓
-For each sticker:
-  Bot API: getFile?file_id={id}
-    → Returns file_path on CDN
-  Download: api.telegram.org/file/bot{token}/{path}
-        ↓
-Convert each file → 512×512 WEBP (≤100KB)
-        ↓
-Save to: filesDir/stickers/{packName}/001.webp … N.webp
-Save meta: filesDir/stickers/{packName}/meta.json
-Save tray: filesDir/stickers/{packName}/tray.webp (96×96)
-        ↓
-StickerContentProvider serves files to WhatsApp on demand
-```
+Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
 
 ---
 
-## WhatsApp Protocol
+## Support
 
-WhatsApp queries our `StickerContentProvider` at:
-- `content://{authority}/metadata` — list of packs
-- `content://{authority}/stickers/{id}` — sticker list for pack
-- `content://{authority}/stickers/{id}/{file.webp}` — raw file bytes
+<div align="center">
 
-The authority is: `com.stickertransfer.app.StickerContentProvider`
-(debug builds append `.debug`)
+If you find this project useful, consider supporting its development:
 
----
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-❤️-ea4aaa?style=for-the-badge&logo=github-sponsors)](https://github.com/sponsors/anxlz)
 
-## ZIP Export Format
+⭐ **Starring the repo is also a great way to show support!**
 
-When exporting as ZIP, the file is saved to:
-- **Android 10+**: `Downloads/` via MediaStore
-- **Android 9 and below**: `/sdcard/Downloads/`
-
-ZIP contains:
-```
-{packName}.zip
-├── 001.webp
-├── 002.webp
-├── ...
-└── tray.webp
-```
-
----
-
-## Permissions
-
-| Permission | Why |
-|---|---|
-| `INTERNET` | Download stickers from Telegram |
-| `READ_EXTERNAL_STORAGE` (≤API 32) | Read imported ZIP files |
-| `WRITE_EXTERNAL_STORAGE` (≤API 29) | Save ZIP to Downloads |
-
-No sensitive permissions required. Scoped storage used on API 29+.
-
----
-
-## Key Files Explained
-
-| File | Purpose |
-|---|---|
-| `StickerContentProvider.kt` | WhatsApp protocol — serves sticker data |
-| `StickerRepository.kt` | Downloads + converts stickers to WEBP |
-| `TelegramApiService.kt` | Ktor HTTP client for Telegram Bot API |
-| `HomeViewModel.kt` | State management for main screen |
-| `WhatsAppUtils.kt` | Fires the WhatsApp add-sticker Intent |
-| `ZipUtils.kt` | ZIP export + import extraction |
-
----
-
-## Known Limitations
-
-- **Animated stickers (.tgs)**: Lottie-format stickers pass through as-is; WhatsApp requires animated WEBP. Full animated conversion needs a Lottie→WEBP converter library.
-- **Private packs**: Only publicly shareable packs work (t.me/addstickers/ links).
-- **Rate limits**: Telegram Bot API has generous limits but very large packs may be slow.
+</div>
 
 ---
 
 ## License
 
-MIT License — see LICENSE file.
+```
+MIT License — Copyright (c) 2024 anxlz
+```
+
+See [LICENSE](LICENSE) for full details.
+
+---
+
+<div align="center">
+Made with ❤️ by <a href="https://github.com/anxlz">anxlz</a>
+</div>
