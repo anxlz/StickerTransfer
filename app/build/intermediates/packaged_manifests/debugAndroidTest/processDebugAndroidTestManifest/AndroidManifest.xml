@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.stickertransfer.app.debug.test" >
+    package="com.stickertransfer.app.test" >
 
     <uses-sdk
-        android:minSdkVersion="24"
-        android:targetSdkVersion="34" />
+        android:minSdkVersion="28"
+        android:targetSdkVersion="35" />
 
     <instrumentation
         android:name="androidx.test.runner.AndroidJUnitRunner"
         android:functionalTest="false"
         android:handleProfiling="false"
-        android:label="Tests for com.stickertransfer.app.debug"
-        android:targetPackage="com.stickertransfer.app.debug" />
+        android:label="Tests for com.stickertransfer.app"
+        android:targetPackage="com.stickertransfer.app" />
 
     <uses-permission android:name="android.permission.REORDER_TASKS" />
 

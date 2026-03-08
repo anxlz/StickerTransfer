@@ -4,7 +4,7 @@
             "outputFile": "com.stickertransfer.app-mergeDebugResources-2:/values-w600dp-land-v13/values-w600dp-land-v13.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\enqpn\\.gradle\\caches\\8.13\\transforms\\36af0a579d19abfb86e3791970f64b80\\transformed\\material-1.11.0\\res\\values-w600dp-land-v13\\values-w600dp-land-v13.xml",
+                    "source": "C:\\Users\\enqpn\\.gradle\\caches\\8.13\\transforms\\3d0e41ef430297827759656c50fd3b40\\transformed\\material-1.13.0\\res\\values-w600dp-land-v13\\values-w600dp-land-v13.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",

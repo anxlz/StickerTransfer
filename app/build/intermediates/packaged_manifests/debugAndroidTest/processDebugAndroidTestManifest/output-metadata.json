@@ -4,7 +4,7 @@
     "type": "PACKAGED_MANIFESTS",
     "kind": "Directory"
   },
-  "applicationId": "com.stickertransfer.app.debug.test",
+  "applicationId": "com.stickertransfer.app.test",
   "variantName": "debugAndroidTest",
   "elements": [
     {

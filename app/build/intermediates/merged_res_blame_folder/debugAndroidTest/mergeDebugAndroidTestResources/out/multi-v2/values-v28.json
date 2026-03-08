@@ -4,14 +4,14 @@
             "outputFile": "com.stickertransfer.app.test.app-mergeDebugAndroidTestResources-1:/values-v28/values-v28.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\enqpn\\.gradle\\caches\\8.13\\transforms\\cfb030bdbe115b1ad32bd3366d0d97f2\\transformed\\core-1.5.0\\res\\values-v28\\values.xml",
+                    "source": "C:\\Users\\enqpn\\.gradle\\caches\\8.11.1\\transforms\\bfd00950de78252dd3545fc9e6dc54ea\\transformed\\core-1.6.1\\res\\values-v28\\values.xml",
                     "from": {
                         "startLines": "4,13",
                         "startColumns": "0,0",
-                        "startOffsets": "180,659",
+                        "startOffsets": "146,625",
                         "endLines": "12,21",
                         "endColumns": "8,8",
-                        "endOffsets": "658,1135"
+                        "endOffsets": "624,1101"
                     },
                     "to": {
                         "startLines": "2,11",

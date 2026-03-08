@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.stickertransfer.app.debug"
+    package="com.stickertransfer.app"
     android:versionCode="1"
     android:versionName="1.0.0" >
 
     <uses-sdk
-        android:minSdkVersion="24"
-        android:targetSdkVersion="34" />
+        android:minSdkVersion="28"
+        android:targetSdkVersion="35" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission
@@ -26,10 +26,10 @@
     </queries>
 
     <permission
-        android:name="com.stickertransfer.app.debug.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        android:name="com.stickertransfer.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
         android:protectionLevel="signature" />
 
-    <uses-permission android:name="com.stickertransfer.app.debug.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+    <uses-permission android:name="com.stickertransfer.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
 
     <application
         android:allowBackup="true"
@@ -57,14 +57,14 @@
 
         <provider
             android:name="com.stickertransfer.app.provider.StickerContentProvider"
-            android:authorities="com.stickertransfer.app.debug.StickerContentProvider"
+            android:authorities="com.stickertransfer.app.StickerContentProvider"
             android:enabled="true"
             android:exported="true"
             android:grantUriPermissions="true"
             android:readPermission="com.whatsapp.sticker.READ" />
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.stickertransfer.app.debug.fileprovider"
+            android:authorities="com.stickertransfer.app.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true" >
             <meta-data
@@ -73,15 +73,16 @@
         </provider>
 
         <activity
-            android:name="androidx.activity.ComponentActivity"
-            android:exported="true" />
-        <activity
             android:name="androidx.compose.ui.tooling.PreviewActivity"
             android:exported="true" />
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
 
         <provider
             android:name="androidx.startup.InitializationProvider"
-            android:authorities="com.stickertransfer.app.debug.androidx-startup"
+            android:authorities="com.stickertransfer.app.androidx-startup"
             android:exported="false" >
             <meta-data
                 android:name="androidx.emoji2.text.EmojiCompatInitializer"

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#FFFFFF</color>
+    <string name="add_to_whatsapp">Add to WhatsApp</string>
+    <string name="add_to_whatsapp_business">Add to WhatsApp Business</string>
+    <string name="app_name">StickerTransfer</string>
+    <string name="bot_token_hint">Enter your Bot Token from @BotFather</string>
+    <string name="bot_token_label">Telegram Bot Token</string>
+    <string name="download_success">Sticker pack saved to Downloads</string>
+    <string name="download_zip">Download as ZIP</string>
+    <string name="home_tab">Home</string>
+    <string name="import_tab">Import ZIP</string>
+    <string name="invalid_link">Invalid Telegram sticker link</string>
+    <string name="load_pack_button">Load Sticker Pack</string>
+    <string name="paste_link_label">Paste Telegram Sticker Pack Link</string>
+    <string name="settings">Settings</string>
+    <string name="sticker_count">%d stickers</string>
+    <string name="whatsapp_not_installed">WhatsApp is not installed</string>
+    <style name="Theme.StickerTransfer" parent="Theme.Material3.DayNight.NoActionBar"/>
+</resources>

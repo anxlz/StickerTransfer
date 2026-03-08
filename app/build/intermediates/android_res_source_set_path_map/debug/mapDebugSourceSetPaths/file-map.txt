@@ -1,0 +1,8 @@
+com.stickertransfer.app-pngs-0 C:\Projects\StickerTransfer\app\build\generated\res\pngs\debug
+com.stickertransfer.app-resValues-1 C:\Projects\StickerTransfer\app\build\generated\res\resValues\debug
+com.stickertransfer.app-updated_navigation_xml-2 C:\Projects\StickerTransfer\app\build\generated\updated_navigation_xml\debug
+com.stickertransfer.app-packageDebugResources-3 C:\Projects\StickerTransfer\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+com.stickertransfer.app-packageDebugResources-4 C:\Projects\StickerTransfer\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+com.stickertransfer.app-debug-5 C:\Projects\StickerTransfer\app\build\intermediates\merged_res\debug\mergeDebugResources
+com.stickertransfer.app-debug-6 C:\Projects\StickerTransfer\app\src\debug\res
+com.stickertransfer.app-main-7 C:\Projects\StickerTransfer\app\src\main\res

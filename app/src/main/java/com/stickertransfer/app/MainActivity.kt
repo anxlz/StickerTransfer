@@ -16,13 +16,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.stickertransfer.app.data.network.PreferencesRepository
 import com.stickertransfer.app.ui.navigation.Screen
 import com.stickertransfer.app.ui.navigation.bottomNavItems
+import com.stickertransfer.app.ui.screens.BackupScreen
+import com.stickertransfer.app.ui.screens.CreateScreen
 import com.stickertransfer.app.ui.screens.HomeScreen
-import com.stickertransfer.app.ui.screens.ImportScreen
+import com.stickertransfer.app.ui.screens.SettingsScreen
 import com.stickertransfer.app.ui.theme.StickerTransferTheme
+import com.stickertransfer.app.ui.viewmodels.BackupViewModel
+import com.stickertransfer.app.ui.viewmodels.CreateViewModel
 import com.stickertransfer.app.ui.viewmodels.HomeViewModel
-import com.stickertransfer.app.ui.viewmodels.ImportViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,6 +46,7 @@ fun StickerTransferApp() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val prefsRepo = remember { PreferencesRepository(context) }
 
     val homeViewModel: HomeViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
@@ -52,16 +57,24 @@ fun StickerTransferApp() {
         }
     )
 
-    val importViewModel: ImportViewModel = viewModel(
+    val createViewModel: CreateViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST")
-                return ImportViewModel(context) as T
+                return CreateViewModel(context) as T
             }
         }
     )
 
-    // Only show bottom nav on top-level screens
+    val backupViewModel: BackupViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return BackupViewModel(context) as T
+            }
+        }
+    )
+
     val showBottomBar = currentRoute in bottomNavItems.map { it.route }
 
     Scaffold(
@@ -97,8 +110,14 @@ fun StickerTransferApp() {
             composable(Screen.Home.route) {
                 HomeScreen(viewModel = homeViewModel)
             }
-            composable(Screen.Import.route) {
-                ImportScreen(viewModel = importViewModel)
+            composable(Screen.Create.route) {
+                CreateScreen(viewModel = createViewModel)
+            }
+            composable(Screen.Backup.route) {
+                BackupScreen(viewModel = backupViewModel)
+            }
+            composable(Screen.Settings.route) {
+                SettingsScreen(prefsRepo = prefsRepo)
             }
         }
     }
