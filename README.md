@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/icon.png" width="120" height="120" style="border-radius:50%" />
+<img src="assets/icon.jpg" width="120" height="120" style="border-radius:50%" />
 
 # StickerTransfer
 
