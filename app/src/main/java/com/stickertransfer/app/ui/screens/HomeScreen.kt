@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -111,6 +112,14 @@ fun HeroBanner() {
                 )
             )
     ) {
+        // Abstract background image to enhance the UI
+        AsyncImage(
+            model = "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=1000&auto=format&fit=crop",
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize().alpha(0.15f),
+            contentScale = ContentScale.Crop
+        )
+
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,

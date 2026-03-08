@@ -9,8 +9,8 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.stickertransfer.app.data.model.StickerPack
+import com.stickertransfer.app.data.model.Sticker
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.decodeFromString
 import java.io.File
 import java.io.FileNotFoundException
 
@@ -69,8 +69,8 @@ class StickerContentProvider : ContentProvider() {
             val metaFile = File(packDir, "meta.json")
             if (metaFile.exists()) {
                 try {
-                    val meta = json.decodeFromString<StoredPackMeta>(metaFile.readText())
-                    packs.add(meta.toStickerPack(packDir.absolutePath))
+                    val pack = json.decodeFromString<StickerPack>(metaFile.readText())
+                    packs.add(pack)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error loading meta for ${packDir.name}", e)
                 }
@@ -158,48 +158,3 @@ class StickerContentProvider : ContentProvider() {
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<String>?) = 0
     override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<String>?) = 0
 }
-
-@kotlinx.serialization.Serializable
-data class StoredPackMeta(
-    val identifier: String,
-    val name: String,
-    val publisher: String,
-    val trayImageFile: String = "tray_icon.webp",
-    val publisherEmail: String = "",
-    val publisherWebsite: String = "",
-    val privacyPolicyWebsite: String = "",
-    val licenseAgreementWebsite: String = "",
-    val animatedStickerPack: Boolean = false,
-    val imageDataVersion: String = "1",
-    val avoidCache: Boolean = false,
-    val stickers: List<StoredStickerMeta>
-)
-
-@kotlinx.serialization.Serializable
-data class StoredStickerMeta(
-    val imageFileName: String,
-    val emojis: List<String>
-)
-
-fun StoredPackMeta.toStickerPack(localDir: String) =
-    com.stickertransfer.app.data.model.StickerPack(
-        identifier = identifier,
-        name = name,
-        publisher = publisher,
-        trayImageFile = trayImageFile,
-        publisherEmail = publisherEmail,
-        publisherWebsite = publisherWebsite,
-        privacyPolicyWebsite = privacyPolicyWebsite,
-        licenseAgreementWebsite = licenseAgreementWebsite,
-        imageDataVersion = imageDataVersion,
-        avoidCache = avoidCache,
-        animatedStickerPack = animatedStickerPack,
-        stickers = stickers.map {
-            com.stickertransfer.app.data.model.Sticker(
-                imageFileName = it.imageFileName,
-                emojis = it.emojis,
-                localPath = "$localDir/${it.imageFileName}"
-            )
-        },
-        localDirectory = localDir
-    )
