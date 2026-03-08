@@ -15,8 +15,6 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        buildConfigField("String", "PROVIDER_AUTHORITY", "\"com.stickertransfer.app.StickerContentProvider\"")
     }
 
     buildTypes {
@@ -27,10 +25,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField("String", "PROVIDER_AUTHORITY", "\"com.stickertransfer.app.StickerContentProvider\"")
         }
         debug {
             applicationIdSuffix = ".debug"
             isDebuggable = true
+            buildConfigField("String", "PROVIDER_AUTHORITY", "\"com.stickertransfer.app.debug.StickerContentProvider\"")
         }
     }
 

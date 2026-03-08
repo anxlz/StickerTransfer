@@ -40,6 +40,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:testOnly="true"
         android:theme="@style/Theme.StickerTransfer"
         android:usesCleartextTraffic="false" >
         <activity
@@ -60,7 +61,7 @@
             android:enabled="true"
             android:exported="true"
             android:grantUriPermissions="true"
-            android:readPermission="com.whatsapp.permission.STICKERS" />
+            android:readPermission="com.whatsapp.sticker.READ" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.stickertransfer.app.debug.fileprovider"

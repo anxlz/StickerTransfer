@@ -3,6 +3,11 @@ package com.stickertransfer.app.data.repository
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
+import android.os.Build
+import android.util.Log
 import com.stickertransfer.app.data.model.Sticker
 import com.stickertransfer.app.data.model.StickerPack
 import com.stickertransfer.app.data.network.TelegramApiService
@@ -21,16 +26,15 @@ class StickerRepository(
     private val context: Context,
     private val apiService: TelegramApiService = TelegramApiService()
 ) {
+    private val TAG = "StickerRepository"
 
     fun parseTelegramLink(link: String): String? {
         val trimmed = link.trim()
-        val regex = Regex("""(?:https?://)?t\.me/addstickers/([A-Za-z0-9_]+)""")
-        return regex.find(trimmed)?.groupValues?.get(1)
+        val regex = Regex("""(?:https?://)?(?:t\.me|telegram\.me|telegram\.dog)/addstickers/([A-Za-z0-9_]+)""")
+        val tgRegex = Regex("""tg://addstickers\?set=([A-Za-z0-9_]+)""")
+        return regex.find(trimmed)?.groupValues?.get(1) ?: tgRegex.find(trimmed)?.groupValues?.get(1)
     }
 
-    /**
-     * Fetch sticker pack metadata from Telegram and split into parts of 30 if needed.
-     */
     suspend fun fetchStickerPackParts(
         botToken: String,
         packName: String
@@ -38,16 +42,25 @@ class StickerRepository(
         try {
             val response = apiService.getStickerSet(botToken, packName)
             if (!response.ok || response.result == null) {
-                return@withContext Result.Error(
-                    response.description ?: "Failed to fetch sticker pack"
-                )
+                return@withContext Result.Error(response.description ?: "Failed to fetch sticker pack")
             }
             val set = response.result
-            val allStickers = set.stickers.take(120) // Still cap at 120 total
+            val allStickers = set.stickers.take(120)
             
-            val packs = allStickers.chunked(30).mapIndexed { packIdx, chunk ->
-                val partName = if (allStickers.size > 30) "${set.title} Part ${packIdx + 1}" else set.title
-                val partId = if (allStickers.size > 30) "${set.name}_p${packIdx + 1}" else set.name
+            // Smart chunking: Ensure every pack has 3-30 stickers
+            val tempChunks = allStickers.chunked(30).toMutableList()
+            if (tempChunks.size > 1 && tempChunks.last().size < 3) {
+                val last = tempChunks.removeAt(tempChunks.size - 1)
+                val secondLast = tempChunks.removeAt(tempChunks.size - 1)
+                val combined = secondLast + last
+                val split = combined.size / 2
+                tempChunks.add(combined.subList(0, split))
+                tempChunks.add(combined.subList(split, combined.size))
+            }
+
+            val packs = tempChunks.mapIndexed { packIdx, chunk ->
+                val partName = if (tempChunks.size > 1) "${set.title} Part ${packIdx + 1}" else set.title
+                val partId = if (tempChunks.size > 1) "${set.name}_p${packIdx + 1}" else set.name
                 
                 val stickers = chunk.mapIndexed { idx, s ->
                     Sticker(
@@ -62,8 +75,8 @@ class StickerRepository(
                     identifier = partId,
                     name = partName,
                     publisher = "Telegram",
-                    trayImageFile = "tray.webp",
-                    animatedStickerPack = set.isAnimated,
+                    trayImageFile = "tray_icon.webp",
+                    animatedStickerPack = false, 
                     stickers = stickers
                 )
             }
@@ -81,55 +94,95 @@ class StickerRepository(
         try {
             val packDir = File(context.filesDir, "stickers/${pack.identifier}").apply { mkdirs() }
             val total = pack.stickers.size
-            val downloadedStickers = pack.stickers.mapIndexed { idx, sticker ->
+            val downloadedStickers = mutableListOf<Sticker>()
+
+            pack.stickers.forEachIndexed { idx, sticker ->
                 onProgress(idx + 1, total)
+                try {
+                    val fileResponse = apiService.getFile(botToken, sticker.fileId)
+                    val filePath = fileResponse.result?.filePath ?: return@forEachIndexed
+                    val rawBytes = apiService.downloadFile(botToken, filePath)
+                    
+                    val bitmap = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size)
+                    if (bitmap == null) {
+                        Log.e(TAG, "Failed to decode sticker ${sticker.fileId}")
+                        return@forEachIndexed 
+                    }
 
-                val fileResponse = apiService.getFile(botToken, sticker.fileId)
-                if (!fileResponse.ok || fileResponse.result?.filePath == null) {
-                    throw Exception("Failed to get file path for sticker ${sticker.fileId}")
+                    val outFile = File(packDir, sticker.imageFileName)
+                    if (convertAndSaveSticker(bitmap, outFile, isTray = false)) {
+                        downloadedStickers.add(sticker.copy(
+                            filePath = filePath, 
+                            localPath = outFile.absolutePath
+                        ))
+                    }
+                    bitmap.recycle()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error processing sticker $idx", e)
                 }
-                val filePath = fileResponse.result.filePath
-                val rawBytes = apiService.downloadFile(botToken, filePath)
-                
-                // Convert to 512x512 WEBP
-                val bitmap = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size)
-                val webpBytes = if (bitmap != null) {
-                    val scaled = Bitmap.createScaledBitmap(bitmap, 512, 512, true)
-                    val out = ByteArrayOutputStream()
-                    scaled.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, out)
-                    out.toByteArray()
-                } else rawBytes
-
-                val outFile = File(packDir, sticker.imageFileName)
-                outFile.writeBytes(webpBytes)
-
-                sticker.copy(filePath = filePath, localPath = outFile.absolutePath)
             }
 
-            if (downloadedStickers.isNotEmpty()) {
-                createTrayIcon(downloadedStickers.first(), packDir)
+            if (downloadedStickers.size < 3) {
+                return@withContext Result.Error("Pack must have at least 3 compatible stickers (found ${downloadedStickers.size})")
             }
 
-            val updatedPack = pack.copy(
+            // Create tray icon from first successful sticker
+            val firstStickerFile = File(downloadedStickers.first().localPath)
+            val firstBitmap = BitmapFactory.decodeFile(firstStickerFile.absolutePath)
+            if (firstBitmap != null) {
+                convertAndSaveSticker(firstBitmap, File(packDir, "tray_icon.webp"), isTray = true)
+                firstBitmap.recycle()
+            }
+
+            Result.Success(pack.copy(
                 stickers = downloadedStickers,
                 localDirectory = packDir.absolutePath
-            )
-            Result.Success(updatedPack)
+            ))
         } catch (e: Exception) {
             Result.Error("Download failed: ${e.message}", e)
         }
     }
 
-    private fun createTrayIcon(firstSticker: Sticker, packDir: File) {
-        try {
-            val src = File(firstSticker.localPath)
-            if (!src.exists()) return
-            val bitmap = BitmapFactory.decodeFile(src.absolutePath) ?: return
-            val tray = Bitmap.createScaledBitmap(bitmap, 96, 96, true)
+    private fun convertAndSaveSticker(bitmap: Bitmap, outFile: File, isTray: Boolean): Boolean {
+        val targetSize = if (isTray) 96 else 512
+        val maxSize = if (isTray) 50 * 1024 else 100 * 1024
+        
+        // Letterboxing to ensure exact size without stretching
+        val scaledBitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(scaledBitmap)
+        val ratio = targetSize.toFloat() / Math.max(bitmap.width, bitmap.height)
+        val width = (bitmap.width * ratio).toInt()
+        val height = (bitmap.height * ratio).toInt()
+        val left = (targetSize - width) / 2
+        val top = (targetSize - height) / 2
+        val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
+        val destRect = Rect(left, top, left + width, top + height)
+        canvas.drawBitmap(bitmap, srcRect, destRect, Paint(Paint.FILTER_BITMAP_FLAG))
+
+        var quality = 100
+        var success = false
+        
+        // Use standard WebP format
+        val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Bitmap.CompressFormat.WEBP_LOSSY
+        } else {
+            @Suppress("DEPRECATION")
+            Bitmap.CompressFormat.WEBP
+        }
+
+        while (quality >= 10) {
             val out = ByteArrayOutputStream()
-            tray.compress(Bitmap.CompressFormat.WEBP_LOSSY, 90, out)
-            File(packDir, "tray.webp").writeBytes(out.toByteArray())
-        } catch (_: Exception) {}
+            scaledBitmap.compress(format, quality, out)
+            val bytes = out.toByteArray()
+            if (bytes.size <= maxSize) {
+                outFile.writeBytes(bytes)
+                success = true
+                break
+            }
+            quality -= 10
+        }
+        scaledBitmap.recycle()
+        return success
     }
 
     fun deletePack(identifier: String) {

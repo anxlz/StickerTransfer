@@ -1,5 +1,7 @@
 package com.stickertransfer.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -28,6 +30,7 @@ import coil.request.ImageRequest
 import com.stickertransfer.app.data.model.StickerPack
 import com.stickertransfer.app.ui.viewmodels.HomeUiState
 import com.stickertransfer.app.ui.viewmodels.HomeViewModel
+import com.stickertransfer.app.utils.WhatsAppUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +42,18 @@ fun HomeScreen(viewModel: HomeViewModel) {
     var linkInput by remember { mutableStateOf("") }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var tokenInput by remember { mutableStateOf(botToken) }
+    val context = LocalContext.current
+
+    val whatsAppLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_CANCELED) {
+            val error = result.data?.getStringExtra("validation_error")
+            if (error != null) {
+                // Handle or log validation error from WhatsApp
+            }
+        }
+    }
 
     LaunchedEffect(snackbar) {
         snackbar?.let {
@@ -78,7 +93,6 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Input card
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp)
@@ -126,7 +140,6 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 }
             }
 
-            // State-driven content
             AnimatedContent(
                 targetState = uiState,
                 transitionSpec = {
@@ -151,7 +164,8 @@ fun HomeScreen(viewModel: HomeViewModel) {
                                 onAction = { viewModel.downloadPack(pack) },
                                 onActionBusiness = { viewModel.downloadPack(pack) },
                                 onRename = { newName -> viewModel.renamePack(pack, newName) },
-                                onRemove = { viewModel.removePack(pack) }
+                                onRemove = { viewModel.removePack(pack) },
+                                whatsAppLauncher = whatsAppLauncher
                             )
                         }
                     }
@@ -160,10 +174,17 @@ fun HomeScreen(viewModel: HomeViewModel) {
                             PackPreviewCard(
                                 pack = pack,
                                 isDownloaded = true,
-                                onAction = { viewModel.addToWhatsApp(pack, false) },
-                                onActionBusiness = { viewModel.addToWhatsApp(pack, true) },
+                                onAction = { 
+                                    val intent = WhatsAppUtils.buildStickerIntent(context, pack, false)
+                                    whatsAppLauncher.launch(intent)
+                                },
+                                onActionBusiness = { 
+                                    val intent = WhatsAppUtils.buildStickerIntent(context, pack, true)
+                                    whatsAppLauncher.launch(intent)
+                                },
                                 onRename = { newName -> viewModel.renamePack(pack, newName) },
-                                onRemove = { viewModel.removePack(pack) }
+                                onRemove = { viewModel.removePack(pack) },
+                                whatsAppLauncher = whatsAppLauncher
                             )
                         }
                     }
@@ -176,7 +197,6 @@ fun HomeScreen(viewModel: HomeViewModel) {
         }
     }
 
-    // Settings dialog
     if (showSettingsDialog) {
         AlertDialog(
             onDismissRequest = { showSettingsDialog = false },
@@ -276,7 +296,8 @@ private fun PackPreviewCard(
     onAction: () -> Unit,
     onActionBusiness: () -> Unit,
     onRename: (String) -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    whatsAppLauncher: androidx.activity.result.ActivityResultLauncher<android.content.Intent>
 ) {
     val context = LocalContext.current
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -291,12 +312,10 @@ private fun PackPreviewCard(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Pack header
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Tray icon or first sticker preview
                 val firstSticker = pack.stickers.firstOrNull()
                 Box(
                     modifier = Modifier

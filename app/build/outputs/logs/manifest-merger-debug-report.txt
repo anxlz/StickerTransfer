@@ -1,8 +1,8 @@
 -- Merging decision tree log ---
 provider#com.stickertransfer.app.provider.StickerContentProvider
-INJECTED from C:\Projects\StickerTransfer\app\src\main\AndroidManifest.xml:38:9-44:73
+INJECTED from C:\Projects\StickerTransfer\app\src\main\AndroidManifest.xml:38:9-44:66
 	android:readPermission
-		ADDED from C:\Projects\StickerTransfer\app\src\main\AndroidManifest.xml:44:13-70
+		ADDED from C:\Projects\StickerTransfer\app\src\main\AndroidManifest.xml:44:13-63
 	android:grantUriPermissions
 		ADDED from C:\Projects\StickerTransfer\app\src\main\AndroidManifest.xml:43:13-47
 	android:enabled
